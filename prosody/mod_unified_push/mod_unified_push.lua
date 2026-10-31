@@ -186,11 +186,7 @@ function push(token, payload, push_id)
 	module:log("debug", "Push notification received [%s], relaying to device...", push_id);
 	local push_iq = st.iq({ type = "set", to = data.sub, from = module.host, id = push_id })
 		:text_tag("push", base64.encode(payload), { instance = data.instance, application = data.application, xmlns = xmlns_up });
-	return module:send_iq(push_iq):next(function ()
-		module:log("debug", "Push notification delivered [%s]", push_id);
-		return 201;
-	end, function (error_event)
-		local e_type, e_cond, e_text = error_event.stanza:get_error();
+	local function failed(e_type, e_cond, e_text)
 		if e_cond == "item-not-found" or e_cond == "feature-not-implemented" then
 			module:log("debug", "Push rejected [%s]", push_id);
 			return 404;
@@ -200,6 +196,19 @@ function push(token, payload, push_id)
 		end
 		module:log("warn", "Unexpected push error response: %s/%s/%s", e_type, e_cond, e_text);
 		return 500;
+	end
+	return module:send_iq(push_iq):next(function (event)
+		-- send_iq resolves, not rejects, with an error the server itself
+		-- returns through the origin, e.g. service-unavailable when the
+		-- recipient's full JID is offline.
+		if event.stanza.attr.type == "error" then
+			return failed(event.stanza:get_error());
+		end
+		module:log("debug", "Push notification delivered [%s]", push_id);
+		return 201;
+	end, function (err)
+		-- A util.error: from the recipient's error reply, or a timeout.
+		return failed(err.type, err.condition, err.text);
 	end);
 end
 
