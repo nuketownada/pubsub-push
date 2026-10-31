@@ -1,6 +1,6 @@
 # pubsub-push: XMPP pubsub topics delivered over UnifiedPush
 
-Authors: Ada, Joshua Perry · Status: design, nothing built yet · 2026-10-31
+Authors: Ada, Joshua Perry · Status: bridge + patch built and tested locally (`tests/`); app not started · 2026-10-31
 
 ## Goal
 
@@ -64,6 +64,10 @@ rev `15a7749c7acb`), 215 lines:
   (including `send_iq`'s 120s timeout). Payload max 4096 bytes.
 - **No queueing.** A push to an offline phone is lost; retrying is the
   application server's job.
+- **Two bugs** (found by the harness, fixed in our patch, see below): a push to
+  an *offline* full JID is reported as delivered (201) and silently lost, and
+  every error reply or timeout raises in the result handler instead of mapping
+  to 404/503/500.
 - **ACL**: by default any account on the host may register.
 
 ## Topics: pubsub nodes on `notify.6bit.com`
@@ -119,10 +123,13 @@ item and breaks the cursor. Webhook publishers must send an `id`.
 
 ## Bridge: `mod_pubsub_unified_push`
 
-A UnifiedPush application server whose application is pubsub. Loaded on
-`notify.6bit.com`; gets the pubsub service with `module:depends("pubsub").service`
-(the same way `mod_pubsub_post` does) and reaches `mod_unified_push` on
-`6bit.com` through that host's module environment.
+A UnifiedPush application server whose application is pubsub. Loaded on the
+**user host** (`6bit.com`), next to `mod_unified_push` (`module:depends`), so
+its HTTP route is served exactly like `/push/`, and the reconnect hooks are
+local. It reaches the pubsub service on `notify.6bit.com` through
+`modulemanager.get_module(host, "pubsub").service`, attaching on
+`server-started` and lazily wherever it needs it, since load order between
+hosts isn't fixed.
 
 ### Registration API
 
@@ -157,7 +164,8 @@ than 7 days ago without renewal are dropped.
 {
   token = "<current endpoint token>", sub = "josh@6bit.com/Conversations.ReL2",
   topics = { "kago", "signi-discord" },
-  cursor = { kago = "<last delivered item id>", ["signi-discord"] = "…" },
+  cursor = { kago = "<last delivered item id>", ["signi-discord"] = "" },
+  first = { ["signi-discord"] = "<first item published since cursor \"\">" },
   updated = 1761900000,
 }
 ```
@@ -167,6 +175,10 @@ messages.
 
 A registration's cursor for a newly added topic starts at the node's current
 last item (`service:get_last_item`), so subscribing doesn't replay history.
+Cursor `""` means "everything retained is due": the node was empty at
+registration, or a gap notice was just delivered. In that state `first`
+records the first item published since (from the publish event; after a gap,
+the oldest retained item), so a later loss is still detected.
 
 ### Delivery
 
@@ -175,17 +187,20 @@ cursor (iterate `get_items`, which is newest-first, stop at the cursor, then
 deliver oldest-first), and for each one:
 
 ```json
-{ "topic": "kago", "id": "<item id>", "published": "2026-10-31T09:00:00Z",
-  "title": "…", "body": "…", "url": "…", "priority": "high" }
+{ "topic": "kago", "id": "<item id>", "title": "…", "body": "…", "url": "…", "priority": "high" }
 ```
+
+(No publish timestamp: `get_items` doesn't expose the archive's. The app uses
+arrival time.)
 
 The body is truncated so the JSON fits the 4096-byte limit. Delivery uses
 `mod_unified_push`'s own push path (patch below), and the cursor advances only on
 "delivered" (201). Anything else leaves the cursor where it is and stops that
 registration's run. Deliveries are serialised per registration to keep order.
 
-If the cursor id is no longer retained (more than `max_items` published while
-offline), the bridge delivers everything retained, preceded by a synthetic
+If the cursor id (or `first`, when the cursor is `""`) is no longer retained
+(more than `max_items` published while offline), the bridge delivers
+everything retained, preceded by a synthetic
 `{"topic":"kago","gap":true}` notice the app shows as "some notifications were
 missed".
 
@@ -206,8 +221,15 @@ arrive later, so the app de-duplicates on `(topic, id)`.
 
 ## Patch to `mod_unified_push`
 
-The bridge needs two things the module only has as locals: decoding a token and
-delivering a push. Proposed refactor, upstreamable to prosody-modules:
+Two parts, both upstreamable to prosody-modules:
+
+1. **Bug fix** (commit `8c92fa0`): `send_iq` *resolves* with an error the server
+   returns through the origin (`service-unavailable` for an offline full JID),
+   so check the result's type; and map rejections from the `util.error`'s
+   fields rather than a nonexistent `.stanza`. Affects every user of the
+   module, Tusky-via-Mastodon included: today an offline push is lost.
+2. **Exposure** (commit `47cc240`): the bridge needs two things the module only
+   has as locals, decoding a token and delivering a push:
 
 - expose `verify_token(token) -> ok, data` (wraps `backends[backend].verify`);
 - split the body of `handle_push` into `push(token, payload) -> promise(status)`,
@@ -257,13 +279,15 @@ Build: reproducible with Nix (exact Gradle-in-Nix approach open), sideloaded.
 
 ## Deployment (liver)
 
-- `extraConfig`: `Component "notify.6bit.com" "pubsub"` with
-  `modules_enabled = { "pubsub_unified_push" }` (and `"pubsub_post"` when
-  needed), and `pubsub_max_items`.
+- `extraConfig`: `"pubsub_unified_push"` in the `6bit.com` VirtualHost's
+  modules, with `pubsub_unified_push_service = "notify.6bit.com"` and the node
+  config; `Component "notify.6bit.com" "pubsub"` (plus `"pubsub_post"` when
+  needed) and `pubsub_max_items`.
 - Module and patched `mod_unified_push` from this repo via `extraPluginPaths`.
 - Nodes created declaratively at startup by the bridge from config
   (`pubsub_unified_push_nodes = { kago = { publishers = {"kago@6bit.com"}, members = {"josh@6bit.com"} } }`),
-  so the ACLs live in mynix rather than in Prosody's data.
+  so the ACLs live in mynix rather than in Prosody's data: declared affiliations
+  are set and undeclared publisher/member ones removed on attach.
 - DNS: `notify.6bit.com` already resolves via the `*.6bit.com` wildcard;
   only local users talk to it, so no SRV record needed.
 
@@ -285,10 +309,14 @@ Build: reproducible with Nix (exact Gradle-in-Nix approach open), sideloaded.
 
 ## Plan
 
-1. Local Prosody test harness (nix shell, throwaway VirtualHost + component);
-   patch `mod_unified_push`; bridge registration + delivery against a fake
-   distributor client (a script speaking the UP iq), no phone yet.
-2. Catch-up, gap handling and triggers; tests for cursor logic.
+1. ~~Local Prosody test harness; patch `mod_unified_push`; bridge registration
+   and delivery against a fake distributor.~~ Done: `nix develop -c pytest
+   tests`, Prosody 13.0.6 (same nixpkgs as mynix), slixmpp as distributor and
+   publisher.
+2. ~~Catch-up, gap handling and triggers; tests for cursor logic.~~ Done for
+   reconnect (new session), retry/backoff, gaps, renewal, restart, unregister,
+   truncation. Not yet covered: smacks resume (`smacks-hibernation-end`),
+   expiry of stale registrations.
 3. Android app; end-to-end on the phone against the harness.
 4. Deploy to liver; move `kago-notify` onto it.
 5. signi Discord forwarder.

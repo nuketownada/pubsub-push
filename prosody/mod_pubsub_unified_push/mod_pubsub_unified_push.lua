@@ -28,7 +28,7 @@ assert(up.verify_token and up.push, "mod_unified_push lacks verify_token/push (n
 local store = module:open_store();
 
 -- key ("bare application instance") -> registration
---   persisted: bare, application, instance, token, sub, exp, topics, cursor, updated
+--   persisted: bare, application, instance, token, sub, exp, topics, cursor, first, updated
 --   runtime:   busy, again, failures, next_attempt
 local regs = {};
 
@@ -36,7 +36,9 @@ local function reg_key(bare, application, instance)
 	return bare.." "..application.." "..instance;
 end
 
-local persisted_fields = { "bare", "application", "instance", "token", "sub", "exp", "topics", "cursor", "first", "updated" };
+local persisted_fields = {
+	"bare", "application", "instance", "token", "sub", "exp", "topics", "cursor", "first", "updated",
+};
 
 local function save_user(bare)
 	local data = {};
