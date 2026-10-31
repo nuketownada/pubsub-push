@@ -159,15 +159,22 @@ end
 
 module:hook("iq-set/host/"..xmlns_up..":register", handle_register);
 
--- Handle incoming POST
-function handle_push(event, subpath)
-	module:log("debug", "Incoming push received!");
-	local ok, data = backends[backend].verify(subpath);
+-- Decode an endpoint token. For other modules (application servers on this
+-- host), e.g. via module:depends("unified_push").verify_token(token).
+-- Returns true and { sub, instance, application, exp }, or nil and an error.
+function verify_token(token)
+	return backends[backend].verify(token);
+end
+
+-- Deliver a push to the registration behind token. Returns an HTTP status
+-- code, or a promise of one: 201 delivered, 404 unknown/rejected,
+-- 400/413 bad payload, 503 recipient unavailable, 500 other errors.
+function push(token, payload, push_id)
+	local ok, data = backends[backend].verify(token);
 	if not ok then
 		module:log("debug", "Received push to unacceptable token (%s)", data);
 		return 404;
 	end
-	local payload = event.request.body;
 	if not payload or payload == "" then
 		module:log("warn", "Missing or empty push payload");
 		return 400;
@@ -175,7 +182,7 @@ function handle_push(event, subpath)
 		module:log("warn", "Push payload too large");
 		return 413;
 	end
-	local push_id = event.request.id or id.short();
+	push_id = push_id or id.short();
 	module:log("debug", "Push notification received [%s], relaying to device...", push_id);
 	local push_iq = st.iq({ type = "set", to = data.sub, from = module.host, id = push_id })
 		:text_tag("push", base64.encode(payload), { instance = data.instance, application = data.application, xmlns = xmlns_up });
@@ -194,6 +201,12 @@ function handle_push(event, subpath)
 		module:log("warn", "Unexpected push error response: %s/%s/%s", e_type, e_cond, e_text);
 		return 500;
 	end);
+end
+
+-- Handle incoming POST
+function handle_push(event, subpath)
+	module:log("debug", "Incoming push received!");
+	return push(subpath, event.request.body, event.request.id);
 end
 
 module:provides("http", {
