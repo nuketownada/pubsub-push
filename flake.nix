@@ -57,6 +57,16 @@
         inherit prosody;
         # Lint separately: its LUA_CPATH would break prosody (Lua 5.2) in the shell.
         luacheck = pkgs.lua52Packages.luacheck;
+        # nixpkgs' Vencord with the PubsubPush plugin (./vencord) built in, for
+        # discord.override { withVencord = true; vencord = …; }. Copied in at
+        # preBuild: pnpmDeps inherits postPatch, so its hash stays nixpkgs'.
+        vencord = pkgs.vencord.overrideAttrs (old: {
+          preBuild = (old.preBuild or "") + ''
+            mkdir -p src/userplugins
+            cp -r ${./vencord/pubsubPush} src/userplugins/pubsubPush
+          '';
+        });
+
         # Publisher for machines (kago-notify, signi's forwarders).
         pubsub-publish = pkgs.writeShellScriptBin "pubsub-publish" ''
           exec ${pkgs.python3.withPackages (p: [ p.slixmpp ])}/bin/python3 -I ${./tools/pubsub_publish.py} "$@"
