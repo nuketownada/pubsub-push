@@ -35,6 +35,10 @@
         inherit prosody;
         # Lint separately: its LUA_CPATH would break prosody (Lua 5.2) in the shell.
         luacheck = pkgs.lua52Packages.luacheck;
+        # Publisher for machines (kago-notify, signi's forwarders).
+        pubsub-publish = pkgs.writeShellScriptBin "pubsub-publish" ''
+          exec ${pkgs.python3.withPackages (p: [ p.slixmpp ])}/bin/python3 -I ${./tools/pubsub_publish.py} "$@"
+        '';
         prosody-modules = pkgs.runCommand "pubsub-push-prosody-modules" { } ''
           cp -r ${./prosody} $out
         '';

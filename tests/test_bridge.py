@@ -178,3 +178,38 @@ def test_catch_up_after_timeout_and_smacks_resume(server_slow_retry):
         assert titles.count("off1") == 2 and titles[-1] == "off2", titles
         await phone.no_push()
     run(t())
+
+
+def test_pubsub_publish_cli(server, tmp_path):
+    """tools/pubsub_publish.py: delivered on success, exit codes on failure."""
+    import subprocess
+    import sys
+    from conftest import PASSWORD, REPO
+
+    pw = tmp_path / "pw"
+    pw.write_text(PASSWORD + "\n")
+    bad = tmp_path / "bad"
+    bad.write_text("wrong\n")
+
+    def cli(user, pwfile, topic, *extra, stdin=None):
+        return subprocess.run(
+            [sys.executable, str(REPO / "tools/pubsub_publish.py"), "--jid", f"{user}@localhost",
+             "--password-file", str(pwfile), "--service", "notify.localhost", "--topic", topic,
+             "--server", f"127.0.0.1:{server.c2s}", "--plaintext", "--timeout", "5", *extra],
+            input=stdin, capture_output=True, text=True, timeout=60)
+
+    async def t():
+        phone, kago, _, _ = await setup(server)
+        r = await asyncio.to_thread(cli, "kago", pw, "kago", "--priority", "high",
+                                    "--url", "https://kago.local:9090/", "md array degraded", "-",
+                                    stdin="[UU_]\n")
+        assert r.returncode == 0, r.stderr
+        p = await phone.next_push()
+        assert (p["title"], p["body"], p["priority"], p["url"]) == \
+            ("md array degraded", "[UU_]\n", "high", "https://kago.local:9090/")
+        r = await asyncio.to_thread(cli, "mallory", pw, "kago", "spoofed")
+        assert r.returncode == 3, (r.returncode, r.stderr)
+        r = await asyncio.to_thread(cli, "kago", bad, "kago", "x")
+        assert r.returncode == 2, (r.returncode, r.stderr)
+        await phone.no_push()
+    run(t())

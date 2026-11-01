@@ -12,5 +12,7 @@ ada@6bit.com with the password from `/run/secrets/ada/email-password`
   service because it's on the host, not a component).
 - `read_mam.py <jid> [minutes]` — print recent messages with <jid> from ada's
   archive (e.g. crash traces pasted in Conversations).
+- `pubsub_publish.py` — the machine publisher, packaged as `.#pubsub-publish`
+  (exits 0 only once the item is accepted; 1 timeout, 2 auth, 3 refused).
 - `live_test.py` — end-to-end check of the bridge on liver with a fake
   distributor as ada@ (`test` topic), cleaning up after itself.
