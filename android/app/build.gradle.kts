@@ -17,10 +17,9 @@ android {
 
     // A stable key, so rebuilds install as updates. Kept outside git
     // (android/signing/, gitignored); without it Gradle's per-home debug key
-    // is used, which changes whenever that home is rebuilt. Backed up in
-    // mynix secrets/pubsub-push.yaml (sops: josh, signi, ada); restore with
-    //   sops -d --extract '["android"]["keystore"]' secrets/pubsub-push.yaml | base64 -d
-    // into android/signing/pubsub-push.keystore.
+    // is used, which changes whenever that home is rebuilt. Kept encrypted in
+    // secrets/signing.yaml (sops: josh, ada); `restore-signing-key` in the
+    // android devShell puts it here.
     val keystore = rootProject.file("signing/pubsub-push.keystore")
     signingConfigs {
         if (keystore.exists()) {

@@ -1,0 +1,13 @@
+keys:
+  - &admin_josh 2EE325D71601671696EBF687E45953D34C8829ED
+  - &ada_age age1ujjm7feyd3p2e0qtfa6zr2rzf593yd2z0xjn0ytvd8jcje68nansxy4zuu
+
+creation_rules:
+  # Android app signing key. Restore with `restore-signing-key` in the
+  # android devShell.
+  - path_regex: secrets/signing\.yaml$
+    key_groups:
+      - pgp:
+          - *admin_josh
+        age:
+          - *ada_age
