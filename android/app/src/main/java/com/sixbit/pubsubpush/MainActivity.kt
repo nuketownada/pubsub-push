@@ -75,6 +75,10 @@ class MainActivity : Activity() {
             appendLine()
             appendLine("Distributor: $distributor")
             appendLine("Endpoint: ${if (prefs.endpoint != null) "yes" else "no"}")
+            appendLine("Last push: ${prefs.lastPush ?: "none yet"}")
+            if (!getSystemService(android.app.NotificationManager::class.java).areNotificationsEnabled()) {
+                appendLine("Notifications are blocked: allow them in Settings → Apps → Push Topics.")
+            }
             if (results.isNotEmpty()) {
                 appendLine("Topics:")
                 append(results)

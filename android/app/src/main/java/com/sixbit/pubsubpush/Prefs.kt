@@ -25,6 +25,11 @@ class Prefs(context: Context) {
         get() = sp.getString("status", null) ?: "Not registered yet."
         set(v) = sp.edit().putString("status", v).apply()
 
+    /** What happened to the last push received, for the status screen. */
+    var lastPush: String?
+        get() = sp.getString("last_push", null)
+        set(v) = sp.edit().putString("last_push", v).apply()
+
     /** Per-topic result of the last successful bridge registration, "topic=result,…". */
     var topicResults: Map<String, String>
         get() = (sp.getString("topic_results", null) ?: "").split(",").filter { "=" in it }

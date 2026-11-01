@@ -11,8 +11,8 @@ android {
         applicationId = "com.sixbit.pubsubpush"
         minSdk = 29 // DayNight framework theme; GrapheneOS devices are far newer
         targetSdk = 36
-        versionCode = 2
-        versionName = "0.1.1"
+        versionCode = 3
+        versionName = "0.1.2"
     }
 
     // A stable key, so rebuilds install as updates. Kept outside git

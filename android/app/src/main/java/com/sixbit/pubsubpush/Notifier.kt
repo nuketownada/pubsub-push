@@ -22,14 +22,19 @@ object Notifier {
     private const val TAG = "pubsubpush"
 
     fun show(context: Context, content: ByteArray) {
+        val prefs = Prefs(context)
+        val now = java.text.DateFormat.getTimeInstance().format(java.util.Date())
         val msg = try {
             JSONObject(String(content))
         } catch (e: JSONException) {
             Log.w(TAG, "Unparseable push", e)
+            prefs.lastPush = "$now: unparseable (${content.size} bytes)"
             return
         }
         val topic = msg.optString("topic", "?")
         val nm = context.getSystemService(NotificationManager::class.java)
+        prefs.lastPush = "$now: $topic" +
+            if (nm.areNotificationsEnabled()) "" else " (notifications are blocked for this app)"
 
         if (msg.optBoolean("gap")) {
             val channel = channel(nm, topic, "default")
