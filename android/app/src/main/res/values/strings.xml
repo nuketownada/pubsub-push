@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Push Topics</string>
+    <string name="topics_label">Topics (one per line)</string>
+    <string name="topics_hint">kago</string>
+    <string name="bridge_label">Bridge registration URL</string>
+    <string name="save">Save and register</string>
+    <string name="no_distributor">No UnifiedPush distributor. In Conversations, set Settings → UnifiedPush Distributor to your account.</string>
+    <string name="gap_title">%1$s: notifications missed</string>
+    <string name="gap_text">Some were lost while this device was offline.</string>
+</resources>

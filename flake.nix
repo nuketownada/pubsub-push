@@ -14,6 +14,21 @@
         withOnlyInstalledCommunityModules = [ "pubsub_post" ];
       };
       python = pkgs.python3.withPackages (p: [ p.slixmpp p.pytest ]);
+
+      # Android app (./android): devShell build, as in rotorflight-configurator.
+      # The SDK is unfree; allowed only in this import.
+      androidPkgs = import nixpkgs {
+        inherit system;
+        config = { allowUnfree = true; android_sdk.accept_license = true; };
+      };
+      buildToolsVersion = "35.0.0"; # AGP 8.13's default
+      androidSdk = (androidPkgs.androidenv.composeAndroidPackages {
+        platformVersions = [ "36" ];
+        buildToolsVersions = [ buildToolsVersion ];
+        includeEmulator = false;
+        includeSystemImages = false;
+        includeNDK = false;
+      }).androidsdk;
     in
     {
       packages.${system} = {
@@ -25,8 +40,19 @@
         '';
       };
 
-      devShells.${system}.default = pkgs.mkShell {
-        packages = [ prosody python ];
+      devShells.${system} = {
+        default = pkgs.mkShell {
+          packages = [ prosody python ];
+        };
+
+        # nix develop .#android -c gradle -p android assembleDebug
+        android = pkgs.mkShell rec {
+          packages = [ pkgs.gradle androidPkgs.zulu17 androidSdk ];
+          ANDROID_HOME = "${androidSdk}/libexec/android-sdk";
+          JAVA_HOME = "${androidPkgs.zulu17}";
+          # AGP's aapt2 from Maven is a generic Linux binary; use the SDK's.
+          GRADLE_OPTS = "-Dorg.gradle.project.android.aapt2FromMavenOverride=${ANDROID_HOME}/build-tools/${buildToolsVersion}/aapt2";
+        };
       };
     };
 }
