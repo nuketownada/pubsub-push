@@ -1,6 +1,6 @@
 # pubsub-push: XMPP pubsub topics delivered over UnifiedPush
 
-Authors: Ada, Joshua Perry · Status: bridge + patch built and tested locally (`tests/`); app not started · 2026-10-31
+Authors: Ada, Joshua Perry · Status: deployed on liver; app working on the phone; senders not migrated yet · 2026-10-31
 
 ## Goal
 
@@ -315,9 +315,15 @@ Build: reproducible with Nix (exact Gradle-in-Nix approach open), sideloaded.
    publisher.
 2. ~~Catch-up, gap handling and triggers; tests for cursor logic.~~ Done for
    reconnect (new session), retry/backoff, gaps, renewal, restart, unregister,
-   truncation. Not yet covered: smacks resume (`smacks-hibernation-end`),
-   expiry of stale registrations.
-3. Android app; end-to-end on the phone against the harness.
-4. Deploy to liver; move `kago-notify` onto it.
-5. signi Discord forwarder.
-6. Send the `mod_unified_push` patch upstream.
+   truncation, and timeout-then-smacks-resume (found on the phone: the resume
+   hook read the new, resource-less connection; fixed in `9b30232`). Not yet
+   covered: expiry of stale registrations.
+3. ~~Android app; end-to-end on the phone.~~ Done 2026-10-31: `android/`
+   (Push Topics 0.1.2) on GrapheneOS via Conversations; delivery, per-topic
+   channels, tap-to-open, duplicate drop, and airplane-mode store-and-forward
+   (timeout, smacks resume, catch-up within ~2s) verified.
+4. ~~Deploy to liver.~~ Done (mynix `f755f74`, `8782fc9`, `0a13eec`); needed
+   `http_default_host` for Prosody HTTP behind nginx.
+5. Move `kago-notify` onto the `kago` topic.
+6. signi Discord forwarder.
+7. Send the `mod_unified_push` fixes upstream.
