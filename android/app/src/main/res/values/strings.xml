@@ -2,7 +2,7 @@
 <resources>
     <string name="app_name">Push Topics</string>
     <string name="topics_label">Topics (one per line)</string>
-    <string name="topics_hint">kago</string>
+    <string name="topics_hint">e.g. kago</string>
     <string name="bridge_label">Bridge registration URL</string>
     <string name="save">Save and register</string>
     <string name="no_distributor">No UnifiedPush distributor. In Conversations, set Settings → UnifiedPush Distributor to your account.</string>
