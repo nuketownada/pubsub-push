@@ -1,5 +1,6 @@
 local unified_push_secret = module:get_option_string("unified_push_secret");
 local push_registration_ttl = module:get_option_number("unified_push_registration_ttl", 86400);
+local push_timeout = module:get_option_number("unified_push_timeout", 120);
 
 local base64 = require "util.encodings".base64;
 local datetime = require "util.datetime";
@@ -197,7 +198,7 @@ function push(token, payload, push_id)
 		module:log("warn", "Unexpected push error response: %s/%s/%s", e_type, e_cond, e_text);
 		return 500;
 	end
-	return module:send_iq(push_iq):next(function (event)
+	return module:send_iq(push_iq, nil, push_timeout):next(function (event)
 		-- send_iq resolves, not rejects, with an error the server itself
 		-- returns through the origin, e.g. service-unavailable when the
 		-- recipient's full JID is offline.

@@ -44,7 +44,8 @@ modules_enabled = {{
 modules_disabled = {{ "s2s"; "tls" }}
 
 pubsub_unified_push_service = "notify.localhost"
-pubsub_unified_push_retry_interval = 2
+pubsub_unified_push_retry_interval = {retry}
+unified_push_timeout = 2
 pubsub_unified_push_reconnect_delay = 0.5
 pubsub_unified_push_nodes = {{
   kago = {{ publishers = {{ "kago@localhost" }}, members = {{ "josh@localhost" }}, max_items = 3 }};
@@ -75,12 +76,12 @@ def wait_port(port, timeout=10):
 
 
 class Server:
-    def __init__(self, tmp):
+    def __init__(self, tmp, retry=2):
         self.dir = tmp
         self.c2s, self.http = free_port(), free_port()
         self.cfg = tmp / "prosody.cfg.lua"
         (tmp / "data").mkdir()
-        self.cfg.write_text(CONFIG.format(dir=tmp, repo=REPO, c2s=self.c2s, http=self.http))
+        self.cfg.write_text(CONFIG.format(dir=tmp, repo=REPO, c2s=self.c2s, http=self.http, retry=retry))
         for user in ("josh", "kago", "mallory"):
             subprocess.run(["prosodyctl", "--config", str(self.cfg), "register", user, "localhost", PASSWORD],
                            check=True, capture_output=True)
@@ -124,13 +125,23 @@ class Server:
             return e.code, None
 
 
-@pytest.fixture
-def server(tmp_path):
-    s = Server(tmp_path)
+def _server(tmp_path, **kw):
+    s = Server(tmp_path, **kw)
     yield s
     s.stop()
     if os.environ.get("SHOW_PROSODY_LOG"):
         print(s.log())
+
+
+@pytest.fixture
+def server(tmp_path):
+    yield from _server(tmp_path)
+
+
+@pytest.fixture
+def server_slow_retry(tmp_path):
+    """Retry timer out of the way: only event-driven catch-up can deliver."""
+    yield from _server(tmp_path, retry=120)
 
 
 def run(coro, timeout=30):

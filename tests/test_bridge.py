@@ -152,3 +152,29 @@ def test_long_body_truncated_to_fit(server):
         p = await phone.next_push()
         assert p["body"].endswith("…") and len(p["body"].encode()) < 4096
     run(t())
+
+
+def test_catch_up_after_timeout_and_smacks_resume(server_slow_retry):
+    """Airplane mode with Conversations: the session hibernates, the push
+    times out (unified_push_timeout = 2), then the client resumes. Catch-up
+    must come from the resume hook (retry timer is 120s here); the timed-out
+    push is also replayed by smacks, so expect it twice and both items."""
+    server = server_slow_retry
+
+    async def t():
+        phone = await Distributor(server, smacks=True).online()
+        endpoint = await phone.register_up()
+        server.http_json("POST", "/pubsub_push/register", {"endpoint": endpoint, "topics": ["kago"]})
+        kago = await Publisher(server, "kago").online()
+        await phone.drop()
+        mark = server.log_size()
+        await kago.publish("kago", {"title": "off1"})
+        await kago.publish("kago", {"title": "off2"})
+        await server.wait_log("failed (500)", mark)
+        await phone.resume()
+        titles = [(await phone.next_push(8))["title"] for _ in range(3)]
+        # smacks replays off1; the bridge then redelivers off1 (the app
+        # de-duplicates on id) and delivers off2.
+        assert titles.count("off1") == 2 and titles[-1] == "off2", titles
+        await phone.no_push()
+    run(t())

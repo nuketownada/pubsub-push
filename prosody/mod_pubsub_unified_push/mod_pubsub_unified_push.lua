@@ -282,11 +282,15 @@ end
 
 -- Catch up as soon as the phone reconnects. Conversations usually resumes a
 -- hibernated session (XEP-0198) rather than binding a new one, so hook both.
+local function session_bare(session)
+	return session and session.username and session.host and session.username.."@"..session.host;
+end
 module:hook("resource-bind", function (event)
-	run_for(jid_util.bare(event.session.full_jid), reconnect_delay);
+	run_for(session_bare(event.session), reconnect_delay);
 end);
+-- origin is the new, resource-less connection; resumed is the original session.
 module:hook("smacks-hibernation-end", function (event)
-	run_for(jid_util.bare(event.origin.full_jid), reconnect_delay);
+	run_for(session_bare(event.resumed or event.origin), reconnect_delay);
 end);
 
 -- Retry anything pending; drop registrations long expired without renewal.

@@ -61,8 +61,13 @@ class Distributor(Client):
 
     reply: "result" to acknowledge, or an error condition to reject."""
 
-    def __init__(self, server, user="josh", resource="Conversations.test", app="io.example.notify"):
+    def __init__(self, server, user="josh", resource="Conversations.test", app="io.example.notify", smacks=False):
         super().__init__(server, user, resource)
+        if smacks:
+            # Stream management with resumption, like Conversations.
+            self.register_plugin("xep_0198")
+            self.resumed = asyncio.Event()
+            self.add_event_handler("session_resumed", lambda _: self.resumed.set())
         self.application, self.instance = h(app), h("default")
         self.pushes = asyncio.Queue()
         self.reply = "result"
@@ -79,6 +84,18 @@ class Distributor(Client):
             r["error"]["type"] = "cancel"
             r["error"]["condition"] = self.reply
             r.send()
+
+    async def drop(self):
+        """Lose the connection without closing the stream (airplane mode):
+        the server hibernates the session if stream management is on."""
+        mark = self.srv.log_size()
+        self.transport.abort()
+        await self.srv.wait_log("hibernat", mark)
+
+    async def resume(self):
+        self.resumed.clear()
+        self.connect("127.0.0.1", self.srv.c2s)
+        await asyncio.wait_for(self.resumed.wait(), 10)
 
     async def register_up(self):
         iq = self.Iq(stype="set", sto="localhost")
