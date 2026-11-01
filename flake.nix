@@ -1,94 +1,52 @@
 {
-  description = "XMPP pubsub topics delivered over UnifiedPush";
+  description = "XMPP pubsub topics delivered to phones over UnifiedPush";
 
-  # Same nixpkgs as mynix, so Prosody matches liver's (13.0.6).
+  # Pinned for the dev shells and tests (Prosody 13.0.6). Consumers should
+  # `inputs.nixpkgs.follows` their own: the overlay and modules build from
+  # the consumer's package set either way.
   inputs.nixpkgs.url = "github:nixos/nixpkgs/cd4ea8d57de16f4810bc5f14207bac45fbf19f67";
 
   outputs = { self, nixpkgs }:
     let
-      system = "x86_64-linux";
-      pkgs = nixpkgs.legacyPackages.${system};
-      # mod_unified_push and mod_pubsub_unified_push come from ./prosody
-      # (plugin_paths); pubsub_post is only installed, for webhook publishing.
-      prosody = pkgs.prosody.override {
-        withOnlyInstalledCommunityModules = [ "pubsub_post" ];
-      };
-      python = pkgs.python3.withPackages (p: [ p.slixmpp p.pytest ]);
-
-      # Android app (./android): devShell build, as in rotorflight-configurator.
-      # The SDK is unfree; allowed only in this import.
-      androidPkgs = import nixpkgs {
-        inherit system;
-        config = { allowUnfree = true; android_sdk.accept_license = true; };
-      };
-      buildToolsVersion = "35.0.0"; # AGP 8.13's default
-      androidSdk = (androidPkgs.androidenv.composeAndroidPackages {
-        platformVersions = [ "36" ];
-        buildToolsVersions = [ buildToolsVersion ];
-        includeEmulator = false;
-        includeSystemImages = false;
-        includeNDK = false;
-      }).androidsdk;
-
-      # Signing key from secrets/signing.yaml (sops: josh, ada) into
-      # android/signing/, so any clone builds APKs that update the installed
-      # app. Never replaces a different existing key.
-      restore-signing-key = pkgs.writeShellApplication {
-        name = "restore-signing-key";
-        runtimeInputs = [ pkgs.sops pkgs.coreutils pkgs.git ];
-        text = ''
-          root=$(git rev-parse --show-toplevel)
-          dest=$root/android/signing/pubsub-push.keystore
-          tmp=$(mktemp)
-          trap 'rm -f "$tmp"' EXIT
-          sops -d --extract '["android"]["keystore"]' "$root/secrets/signing.yaml" | base64 -d > "$tmp"
-          if [ -e "$dest" ]; then
-            if cmp -s "$tmp" "$dest"; then echo "$dest already matches"; exit 0; fi
-            echo "$dest exists and differs; not replacing it" >&2; exit 1
-          fi
-          mkdir -p "$(dirname "$dest")"
-          install -m 600 "$tmp" "$dest"
-          echo "restored $dest"
-        '';
-      };
+      systems = [ "x86_64-linux" "aarch64-linux" ];
+      forAllSystems = f: nixpkgs.lib.genAttrs systems (system: f nixpkgs.legacyPackages.${system});
     in
     {
-      packages.${system} = {
-        inherit prosody;
-        # Lint separately: its LUA_CPATH would break prosody (Lua 5.2) in the shell.
-        luacheck = pkgs.lua52Packages.luacheck;
-        # nixpkgs' Vencord with the PubsubPush plugin (./vencord) built in, for
-        # discord.override { withVencord = true; vencord = …; }. Copied in at
-        # preBuild: pnpmDeps inherits postPatch, so its hash stays nixpkgs'.
-        vencord = pkgs.vencord.overrideAttrs (old: {
-          preBuild = (old.preBuild or "") + ''
-            mkdir -p src/userplugins
-            cp -r ${./vencord/pubsubPush} src/userplugins/pubsubPush
-          '';
+      # pubsub-publish, pubsub-push-prosody-modules, vencord-pubsub-push,
+      # discord-pubsub-push (unfree), from the consumer's pkgs.
+      overlays.default = final: prev: import ./nix/packages.nix final;
+
+      # services.pubsub-push.prosody: the server side, on services.prosody.
+      nixosModules.prosody = import ./nix/prosody.nix;
+      nixosModules.default = self.nixosModules.prosody;
+
+      # programs.pubsub-push.discord: Discord notifications to a topic.
+      homeManagerModules.discord = import ./nix/discord.nix;
+
+      packages = forAllSystems (pkgs:
+        let pp = import ./nix/packages.nix pkgs; in {
+          inherit (pp) pubsub-publish pubsub-push-prosody-modules vencord-pubsub-push;
+          default = pp.pubsub-publish;
+          # Test harness Prosody: our modules come from ./prosody
+          # (plugin_paths); pubsub_post is only installed, for webhooks.
+          prosody = pkgs.prosody.override {
+            withOnlyInstalledCommunityModules = [ "pubsub_post" ];
+          };
+          # Lint separately: its LUA_CPATH would break prosody (Lua 5.2) in a shell.
+          luacheck = pkgs.lua52Packages.luacheck;
         });
 
-        # Publisher for machines (kago-notify, signi's forwarders).
-        pubsub-publish = pkgs.writeShellScriptBin "pubsub-publish" ''
-          exec ${pkgs.python3.withPackages (p: [ p.slixmpp ])}/bin/python3 -I ${./tools/pubsub_publish.py} "$@"
-        '';
-        prosody-modules = pkgs.runCommand "pubsub-push-prosody-modules" { } ''
-          cp -r ${./prosody} $out
-        '';
-      };
-
-      devShells.${system} = {
+      devShells = forAllSystems (pkgs: {
+        # Tests: nix develop -c bash -c 'cd tests && python -m pytest'
         default = pkgs.mkShell {
-          packages = [ prosody python ];
+          packages = [
+            self.packages.${pkgs.stdenv.hostPlatform.system}.prosody
+            (pkgs.python3.withPackages (p: [ p.slixmpp p.pytest ]))
+          ];
         };
-
-        # nix develop .#android -c gradle -p android assembleDebug
-        android = pkgs.mkShell rec {
-          packages = [ pkgs.gradle androidPkgs.zulu17 androidSdk pkgs.sops restore-signing-key ];
-          ANDROID_HOME = "${androidSdk}/libexec/android-sdk";
-          JAVA_HOME = "${androidPkgs.zulu17}";
-          # AGP's aapt2 from Maven is a generic Linux binary; use the SDK's.
-          GRADLE_OPTS = "-Dorg.gradle.project.android.aapt2FromMavenOverride=${ANDROID_HOME}/build-tools/${buildToolsVersion}/aapt2";
-        };
-      };
+      } // nixpkgs.lib.optionalAttrs (pkgs.stdenv.hostPlatform.system == "x86_64-linux") {
+        # Android app: nix develop .#android -c gradle -p android assembleDebug
+        android = import ./nix/android-shell.nix { inherit nixpkgs pkgs; };
+      });
     };
 }
