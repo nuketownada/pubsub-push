@@ -1,6 +1,6 @@
 # pubsub-push: XMPP pubsub topics delivered over UnifiedPush
 
-Authors: Ada, Joshua Perry · Status: deployed on liver; app working on the phone; senders not migrated yet · 2026-10-31
+Authors: Ada, Joshua Perry · Status: deployed; kago and Discord-on-signi publishing to the phone · 2026-10-31
 
 ## Goal
 
@@ -272,10 +272,16 @@ Build: reproducible with Nix (exact Gradle-in-Nix approach open), sideloaded.
 - **kago**: `kago-notify` publishes to node `kago` instead of messaging josh@
   directly; same call sites (alarm timer, `kago-notify-failure@`, boot).
   The direct XMPP message can stay as a fallback during rollout.
-- **signi**: a user service watching the session D-Bus for notifications from
-  Discord, publishing `{title, body, url}` to `signi-discord`. The channel URL
-  may not be recoverable from a desktop notification; fallback `url` is
-  `https://discord.com/app`.
+- **signi**: Discord runs with Vencord and the `vencord/pubsubPush` plugin
+  (built into nixpkgs' Vencord as `.#vencord`). On each message Discord's own
+  should-notify check passes (mutes and settings apply), its main-process side
+  runs `forwardIf` (signi: josh's i3lock-color is running) and then
+  `pubsub-publish` to `signi-discord`, with
+  `https://discord.com/channels/<guild|@me>/<channel>/<message>` as the tap
+  link, which opens Discord at that message. Config:
+  `~/.config/pubsub-push/discord.json` (mynix `machines/signi/pubsub-push.nix`).
+  Desktop notifications over D-Bus were considered and dropped: they carry no
+  channel or message IDs, so no deep links.
 
 ## Deployment (liver)
 
@@ -324,6 +330,6 @@ Build: reproducible with Nix (exact Gradle-in-Nix approach open), sideloaded.
    (timeout, smacks resume, catch-up within ~2s) verified.
 4. ~~Deploy to liver.~~ Done (mynix `f755f74`, `8782fc9`, `0a13eec`); needed
    `http_default_host` for Prosody HTTP behind nginx.
-5. Move `kago-notify` onto the `kago` topic.
-6. signi Discord forwarder.
+5. ~~Move `kago-notify` onto the `kago` topic.~~ Done (mynix `52826fd`).
+6. ~~signi Discord forwarder.~~ Done (Vencord plugin; mynix `fd3b41e`).
 7. Send the `mod_unified_push` fixes upstream.
