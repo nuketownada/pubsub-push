@@ -150,6 +150,10 @@ local function encode_message(topic, id, item)
 		url = type(data.url) == "string" and data.url or nil;
 		priority = type(data.priority) == "string" and data.priority or nil;
 		group = type(data.group) == "string" and data.group or nil;
+		sender = type(data.sender) == "string" and data.sender or nil;
+		icon = type(data.icon) == "string" and data.icon or nil;
+		image = type(data.image) == "string" and data.image or nil;
+		clear = data.clear == true or nil;
 	};
 	local encoded = json.encode(msg);
 	while #encoded > max_payload and msg.body and #msg.body > 0 do

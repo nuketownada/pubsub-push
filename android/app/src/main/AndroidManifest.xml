@@ -30,6 +30,13 @@
             </intent-filter>
         </service>
 
+        <!-- Cached pictures for chat notifications, read by the system UI. -->
+        <provider
+            android:name=".ImageProvider"
+            android:authorities="com.sixbit.pubsubpush.images"
+            android:exported="false"
+            android:grantUriPermissions="true" />
+
         <!-- Sends {endpoint, topics} to the bridge, retried until it works. -->
         <service
             android:name=".RegisterJob"

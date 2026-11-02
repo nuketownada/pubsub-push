@@ -105,7 +105,19 @@ XEP-0335 JSON container, the same wrapping `mod_pubsub_post` produces:
 
 Fields: `title` (required), `body`, `url` (tap action), `priority`
 (`low`/`default`/`high` → Android notification importance), `group` (optional
-collapse key).
+collapse key), `icon` and `image` (picture URLs; the app fetches them, since a
+push is at most 4096 bytes).
+
+**Chat items** also carry `sender`, and `group` is the conversation: the app
+keeps one notification per (topic, group) and stacks messages in it,
+messaging-app style; `title` is the conversation's name (a DM's is the other
+person). **Clear items** `{"clear": true, "group": …}` remove that group's
+notifications, e.g. once the conversation was read elsewhere.
+
+Pictures for publishers without a URL of their own: `pubsub-publish --image
+FILE` uploads it with XEP-0363 to the publishing account's server first (on
+liver that's prosody-filer-s3, i.e. Linode object storage) and sends the
+download URL.
 
 **Item ids must be unique.** An XMPP publish without an id gets a server UUID
 (`pubsub.lib.lua`, `uuid_generate()`). `mod_pubsub_post` uses the JSON's `id`
@@ -261,6 +273,14 @@ Minimal, Kotlin, UnifiedPush connector library:
   controls work), importance from `priority`. Tap → `PendingIntent.getActivity`
   with `ACTION_VIEW` on `url`, launched directly from the notification:
   Android 12+ blocks trampolines through receivers or services.
+- **Chat items**: one `MessagingStyle` notification per conversation, holding
+  its last 8 messages only while it's showing (tapped, swiped or cleared →
+  the next message starts afresh, no delete-intent bookkeeping). Tapping opens
+  the newest message's URL and clears the whole conversation.
+- **Pictures**: posted without them first, then fetched (scaled to 256px icons
+  or 1280px images, cached 3 days) and re-posted silently if still showing.
+  Chat pictures reach the system UI through a non-exported `ImageProvider`
+  content URI, which the notification system grants it.
 - `POST_NOTIFICATIONS` runtime permission (Android 13+).
 - No account, no XMPP, no network connection of its own besides the
   registration POST.
@@ -278,7 +298,13 @@ Build: reproducible with Nix (exact Gradle-in-Nix approach open), sideloaded.
   runs `forwardIf` (signi: josh's i3lock-color is running) and then
   `pubsub-publish` to `signi-discord`, with
   `https://discord.com/channels/<guild|@me>/<channel>/<message>` as the tap
-  link, which opens Discord at that message. Config:
+  link, which opens Discord at that message. Items are chat-style
+  (`sender`, `group` = channel ID) with the author's avatar as `icon` and the
+  first image attachment as `image` (Discord's signed CDN URL, valid about a
+  day). The plugin remembers the channels it forwarded; when Discord's
+  `ReadStateStore` shows one read up to the forwarded message (read on signi,
+  or on any client, since read state syncs), it publishes a clear for that
+  channel, regardless of `forwardIf`. Config:
   `~/.config/pubsub-push/discord.json` (mynix `machines/signi/pubsub-push.nix`).
   Desktop notifications over D-Bus were considered and dropped: they carry no
   channel or message IDs, so no deep links.
@@ -333,3 +359,5 @@ Build: reproducible with Nix (exact Gradle-in-Nix approach open), sideloaded.
 5. ~~Move `kago-notify` onto the `kago` topic.~~ Done (mynix `52826fd`).
 6. ~~signi Discord forwarder.~~ Done (Vencord plugin; mynix `fd3b41e`).
 7. Send the `mod_unified_push` fixes upstream.
+8. Chat-style Discord notifications, pictures (`icon`, `image`, uploads via
+   `pubsub-publish`), clear-on-read (Push Topics 0.2.0).

@@ -8,4 +8,5 @@
     <string name="no_distributor">No UnifiedPush distributor. In Conversations, set Settings → UnifiedPush Distributor to your account.</string>
     <string name="gap_title">%1$s: notifications missed</string>
     <string name="gap_text">Some were lost while this device was offline.</string>
+    <string name="me">You</string>
 </resources>

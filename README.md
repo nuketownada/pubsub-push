@@ -92,8 +92,12 @@ pubsub-publish --jid server@example.com --password-file /run/secrets/xmpp \
   "disk failing" - < smartctl-report.txt
 ```
 
-`--priority`: `low` (silent), `default`, `high` (pops up). Exit codes: 0
-accepted, 1 timeout or connection, 2 auth, 3 refused (e.g. not a publisher).
+`--priority`: `low` (silent), `default`, `high` (pops up). `--image` and
+`--icon` take a URL, or a file that's first uploaded to the account's server
+(XEP-0363). Chat-style: `--sender` with `--group` (the conversation) stacks
+messages in one notification; `--clear --group G` removes it. Exit codes: 0
+accepted, 1 timeout or connection, 2 auth, 3 refused (e.g. not a publisher),
+4 upload failed.
 Over HTTP instead, enable prosody-modules' `mod_pubsub_post` on the
 component; send JSON `{"id", "title", "body", "url", "priority"}` and always
 a unique `id` (without one it overwrites a single item).

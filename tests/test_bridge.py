@@ -154,6 +154,20 @@ def test_long_body_truncated_to_fit(server):
     run(t())
 
 
+def test_chat_fields_passed(server):
+    async def t():
+        phone, kago, _, _ = await setup(server)
+        await kago.publish("kago", {"title": "#general (srv)", "body": "hi", "group": "123", "sender": "bob",
+                                    "icon": "https://cdn/a.png", "image": "https://cdn/i.png"})
+        p = await phone.next_push()
+        assert (p["group"], p["sender"], p["icon"], p["image"]) == ("123", "bob", "https://cdn/a.png", "https://cdn/i.png")
+        assert "clear" not in p
+        await kago.publish("kago", {"clear": True, "group": "123"})
+        p = await phone.next_push()
+        assert p["clear"] is True and p["group"] == "123"
+    run(t())
+
+
 def test_catch_up_after_timeout_and_smacks_resume(server_slow_retry):
     """Airplane mode with Conversations: the session hibernates, the push
     times out (unified_push_timeout = 2), then the client resumes. Catch-up
@@ -184,6 +198,7 @@ def test_pubsub_publish_cli(server, tmp_path):
     """tools/pubsub_publish.py: delivered on success, exit codes on failure."""
     import subprocess
     import sys
+    import urllib.request
     from conftest import PASSWORD, REPO
 
     pw = tmp_path / "pw"
@@ -207,6 +222,19 @@ def test_pubsub_publish_cli(server, tmp_path):
         p = await phone.next_push()
         assert (p["title"], p["body"], p["priority"], p["url"]) == \
             ("md array degraded", "[UU_]\n", "high", "https://kago.local:9090/")
+        img = tmp_path / "graph.png"
+        img.write_bytes(b"\x89PNG fake")
+        r = await asyncio.to_thread(cli, "kago", pw, "kago", "--image", str(img), "--sender", "kago",
+                                    "--group", "md", "with picture")
+        assert r.returncode == 0, r.stderr
+        p = await phone.next_push()
+        assert p["sender"] == "kago" and p["image"].startswith("http://localhost:"), p
+        get = urllib.request.Request(p["image"].replace("localhost", "127.0.0.1", 1), headers={"Host": "localhost"})
+        with urllib.request.urlopen(get) as resp:
+            assert resp.read() == b"\x89PNG fake"
+        r = await asyncio.to_thread(cli, "kago", pw, "kago", "--clear", "--group", "md")
+        assert r.returncode == 0, r.stderr
+        assert (await phone.next_push())["clear"] is True
         r = await asyncio.to_thread(cli, "mallory", pw, "kago", "spoofed")
         assert r.returncode == 3, (r.returncode, r.stderr)
         r = await asyncio.to_thread(cli, "kago", bad, "kago", "x")

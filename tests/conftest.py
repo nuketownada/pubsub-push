@@ -39,7 +39,7 @@ allow_unencrypted_plain_auth = true
 
 modules_enabled = {{
   "roster"; "saslauth"; "disco"; "ping"; "smacks"; "http";
-  "pubsub_unified_push";
+  "pubsub_unified_push"; "http_file_share";
 }}
 modules_disabled = {{ "s2s"; "tls" }}
 
