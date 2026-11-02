@@ -11,8 +11,8 @@ android {
         applicationId = "com.sixbit.pubsubpush"
         minSdk = 30 // pushDynamicShortcut (conversation notifications); GrapheneOS devices are far newer
         targetSdk = 36
-        versionCode = 6
-        versionName = "0.2.2"
+        versionCode = 7
+        versionName = "0.2.3"
     }
 
     // A stable key, so rebuilds install as updates. Kept outside git
