@@ -32,6 +32,7 @@ interface Item {
     group: string;
     icon?: string;
     image?: string;
+    groupIcon?: string;
 }
 
 const configPath = join(process.env.XDG_CONFIG_HOME || join(homedir(), ".config"), "pubsub-push", "discord.json");
@@ -59,7 +60,8 @@ export async function publish(_: unknown, item: Item): Promise<string> {
     if (!config) return `not forwarding: no config at ${configPath}`;
     if (config.forwardIf && await run(config.forwardIf, 5_000) !== 0)
         return "not forwarding: condition not met";
-    const optional = (["icon", "image"] as const).flatMap(k => item[k] ? [`--${k}`, item[k]!] : []);
+    const optional = ([["icon", "--icon"], ["image", "--image"], ["groupIcon", "--group-icon"]] as const)
+        .flatMap(([k, flag]) => item[k] ? [flag, item[k]!] : []);
     const code = await run([
         ...config.publish,
         "--url", item.url, "--group", item.group, "--sender", item.sender, ...optional,

@@ -153,6 +153,7 @@ local function encode_message(topic, id, item)
 		sender = type(data.sender) == "string" and data.sender or nil;
 		icon = type(data.icon) == "string" and data.icon or nil;
 		image = type(data.image) == "string" and data.image or nil;
+		group_icon = type(data.group_icon) == "string" and data.group_icon or nil;
 		clear = data.clear == true or nil;
 	};
 	local encoded = json.encode(msg);

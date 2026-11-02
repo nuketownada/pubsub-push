@@ -111,7 +111,8 @@ push is at most 4096 bytes).
 **Chat items** also carry `sender`, and `group` is the conversation: the app
 keeps one notification per (topic, group) and stacks messages in it,
 messaging-app style; `title` is the conversation's name (a DM's is the other
-person). **Clear items** `{"clear": true, "group": …}` remove that group's
+person), and `group_icon` its picture (a server's icon; without one the app
+draws the title's initial). **Clear items** `{"clear": true, "group": …}` remove that group's
 notifications, e.g. once the conversation was read elsewhere.
 
 Pictures for publishers without a URL of their own: `pubsub-publish --image
@@ -301,7 +302,7 @@ Build: reproducible with Nix (exact Gradle-in-Nix approach open), sideloaded.
   link, which opens Discord at that message. Items are chat-style
   (`sender`, `group` = channel ID) with the author's avatar as `icon` and the
   first image attachment as `image` (Discord's signed CDN URL, valid about a
-  day). The plugin remembers the channels it forwarded; when Discord's
+  day), and the server's or group DM's icon as `group_icon`. The plugin remembers the channels it forwarded; when Discord's
   `ReadStateStore` shows one read up to the forwarded message (read on signi,
   or on any client, since read state syncs), it publishes a clear for that
   channel, regardless of `forwardIf`. Config:
@@ -360,4 +361,5 @@ Build: reproducible with Nix (exact Gradle-in-Nix approach open), sideloaded.
 6. ~~signi Discord forwarder.~~ Done (Vencord plugin; mynix `fd3b41e`).
 7. Send the `mod_unified_push` fixes upstream.
 8. Chat-style Discord notifications, pictures (`icon`, `image`, uploads via
-   `pubsub-publish`), clear-on-read (Push Topics 0.2.0).
+   `pubsub-publish`), clear-on-read (Push Topics 0.2.0); conversation icons
+   (0.2.1).

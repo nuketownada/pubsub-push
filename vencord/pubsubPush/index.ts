@@ -11,7 +11,7 @@
 import { Logger } from "@utils/Logger";
 import definePlugin, { PluginNative, ReporterTestable } from "@utils/types";
 import { findByCodeLazy } from "@webpack";
-import { ChannelStore, GuildRoleStore, GuildStore, ReadStateStore, UserStore } from "@webpack/common";
+import { ChannelStore, GuildRoleStore, GuildStore, IconUtils, ReadStateStore, UserStore } from "@webpack/common";
 
 interface Message {
     id: string;
@@ -66,12 +66,16 @@ function readable(message: Message, guildId?: string) {
 function describe(message: Message) {
     const channel = ChannelStore.getChannel(message.channel_id);
     const author = displayName(message.author);
-    // The conversation; a DM's is the other person.
+    // The conversation; a DM's is the other person, with no icon of its own.
     let title = author;
+    let groupIcon: string | undefined;
     if (channel.type === GROUP_DM) {
         title = channel.name?.trim() || channel.rawRecipients?.map(r => r.username).join(", ");
+        if (channel.icon) groupIcon = IconUtils.getChannelIconURL({ id: channel.id, icon: channel.icon, size: 128 });
     } else if (channel.type !== DM && channel.guild_id) {
-        title = `#${channel.name} (${GuildStore.getGuild(channel.guild_id)?.name ?? "server"})`;
+        const guild = GuildStore.getGuild(channel.guild_id);
+        title = `#${channel.name} (${guild?.name ?? "server"})`;
+        if (guild?.icon) groupIcon = IconUtils.getGuildIconURL({ id: guild.id, icon: guild.icon, size: 128 });
     }
 
     const parts = [message.referenced_message ? "(reply)" : "", readable(message, channel.guild_id)];
@@ -91,6 +95,7 @@ function describe(message: Message) {
         group: message.channel_id,
         icon: avatar?.startsWith("https://") ? avatar : undefined,
         image: image?.url,
+        groupIcon: groupIcon?.startsWith("https://") ? groupIcon : undefined,
     };
 }
 

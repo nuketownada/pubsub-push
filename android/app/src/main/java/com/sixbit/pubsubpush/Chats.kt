@@ -4,6 +4,11 @@ import android.app.Notification
 import android.app.NotificationManager
 import android.app.Person
 import android.content.Context
+import android.graphics.Bitmap
+import android.graphics.Canvas
+import android.graphics.Color
+import android.graphics.Paint
+import android.graphics.Typeface
 import android.graphics.drawable.Icon
 import org.json.JSONArray
 import org.json.JSONObject
@@ -31,6 +36,7 @@ object Chats {
         val messages = old?.let { JSONObject(it).optJSONArray("messages") } ?: JSONArray()
         val icon = msg.optString("icon").takeIf { it.isNotEmpty() }
         val image = msg.optString("image").takeIf { it.isNotEmpty() }
+        val groupIcon = msg.optString("group_icon").takeIf { it.isNotEmpty() }
         messages.put(JSONObject()
             .put("sender", msg.getString("sender"))
             .put("text", msg.optString("body"))
@@ -42,11 +48,12 @@ object Chats {
             .put("title", msg.optString("title", topic))
             .put("url", msg.optString("url"))
             .put("priority", msg.optString("priority", "default"))
+            .putOpt("group_icon", groupIcon)
             .put("messages", messages)
         store(context).edit().putString(k, chat.toString()).apply()
         post(context, nm, topic, group, chat, alert = true)
 
-        val fetch = listOfNotNull(icon?.let { it to 256 }, image?.let { it to 1280 })
+        val fetch = listOfNotNull(icon?.let { it to 256 }, image?.let { it to 1280 }, groupIcon?.let { it to 256 })
             .filter { Images.cached(context, it.first) == null }
         if (fetch.isNotEmpty()) Thread {
             fetch.forEach { (url, px) -> Images.fetch(context, url, px) }
@@ -106,10 +113,35 @@ object Chats {
             .setOnlyAlertOnce(!alert)
             .setWhen(last.getLong("time"))
             .setShowWhen(true)
-        if (!isGroup) {
+        // The conversation's icon (top left): a DM's is the sender, a group's its own
+        // icon, or failing that its initial, since Android otherwise shows the app icon.
+        val conversationIcon = if (isGroup) {
+            Images.bitmap(Images.cached(context, chat.optString("group_icon").ifEmpty { null }))
+                ?: initial(title)
+        } else {
             Images.bitmap(Images.cached(context, last.optString("icon").ifEmpty { null }))
-                ?.let { builder.setLargeIcon(it) }
         }
+        conversationIcon?.let { builder.setLargeIcon(it) }
         nm.notify(id, builder.build())
+    }
+
+    /** A coloured circle with the title's first letter (skipping "#" and the like). */
+    private fun initial(title: String): Bitmap {
+        val size = 128
+        val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(bitmap)
+        val hue = ((title.hashCode() % 360) + 360) % 360f
+        canvas.drawCircle(size / 2f, size / 2f, size / 2f,
+            Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.HSVToColor(floatArrayOf(hue, 0.5f, 0.6f)) })
+        val start = title.indexOfFirst { it.isLetterOrDigit() }
+        val letter = if (start < 0) "?" else title.substring(start, title.offsetByCodePoints(start, 1)).uppercase()
+        val text = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.WHITE
+            textSize = size * 0.5f
+            textAlign = Paint.Align.CENTER
+            typeface = Typeface.DEFAULT_BOLD
+        }
+        canvas.drawText(letter, size / 2f, size / 2f - (text.descent() + text.ascent()) / 2, text)
+        return bitmap
     }
 }

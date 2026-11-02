@@ -8,7 +8,7 @@ fall back to something else on failure: 1 timeout/connection, 2 auth,
       --service notify.6bit.com --topic kago --priority high \\
       --url https://kago.local:9090/ "md array degraded" - < /proc/mdstat
 
---image and --icon take a URL, or a local file, which is first uploaded with
+--image, --icon and --group-icon take a URL, or a local file, which is first uploaded with
 XEP-0363 HTTP upload on the publishing account's server (--upload-service) and
 replaced by its download URL. Chat-style items set --sender and --group (the
 conversation); --clear --group G removes that conversation's notification.
@@ -65,7 +65,7 @@ class Publisher(slixmpp.ClientXMPP):
         return slot.find(f"{{{UPLOAD_NS}}}get").get("url")
 
     async def _publish(self, _):
-        for key in ("image", "icon"):
+        for key in ("image", "icon", "group_icon"):
             path = self.item.get(key)
             if path and not path.startswith(("https://", "http://")):
                 try:
@@ -107,6 +107,7 @@ def parse_args(argv):
     p.add_argument("--sender", help="chat style: who said it; messages with the same --group stack up")
     p.add_argument("--icon", help="large icon (e.g. the sender's avatar): URL or file to upload")
     p.add_argument("--image", help="picture to show: URL or file to upload")
+    p.add_argument("--group-icon", help="chat style: the conversation's icon (e.g. a server's): URL or file")
     p.add_argument("--clear", action="store_true", help="remove --group's notification instead")
     p.add_argument("--upload-service", help="XEP-0363 upload service (default: the account's server)")
     p.add_argument("--timeout", type=float, default=30)
@@ -129,7 +130,8 @@ async def run(args):
     else:
         item = {"title": args.title}
         for key, val in (("body", body), ("url", args.url), ("priority", args.priority), ("group", args.group),
-                         ("sender", args.sender), ("icon", args.icon), ("image", args.image)):
+                         ("sender", args.sender), ("icon", args.icon), ("image", args.image),
+                         ("group_icon", args.group_icon)):
             if val:
                 item[key] = val
     client = Publisher(args, item)

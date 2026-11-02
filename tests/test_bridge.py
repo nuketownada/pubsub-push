@@ -158,9 +158,11 @@ def test_chat_fields_passed(server):
     async def t():
         phone, kago, _, _ = await setup(server)
         await kago.publish("kago", {"title": "#general (srv)", "body": "hi", "group": "123", "sender": "bob",
-                                    "icon": "https://cdn/a.png", "image": "https://cdn/i.png"})
+                                    "icon": "https://cdn/a.png", "image": "https://cdn/i.png",
+                                    "group_icon": "https://cdn/g.png"})
         p = await phone.next_push()
-        assert (p["group"], p["sender"], p["icon"], p["image"]) == ("123", "bob", "https://cdn/a.png", "https://cdn/i.png")
+        assert (p["group"], p["sender"], p["icon"], p["image"], p["group_icon"]) == \
+            ("123", "bob", "https://cdn/a.png", "https://cdn/i.png", "https://cdn/g.png")
         assert "clear" not in p
         await kago.publish("kago", {"clear": True, "group": "123"})
         p = await phone.next_push()

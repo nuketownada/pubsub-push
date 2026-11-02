@@ -93,7 +93,7 @@ pubsub-publish --jid server@example.com --password-file /run/secrets/xmpp \
 ```
 
 `--priority`: `low` (silent), `default`, `high` (pops up). `--image` and
-`--icon` take a URL, or a file that's first uploaded to the account's server
+`--icon` (and `--group-icon`) take a URL, or a file that's first uploaded to the account's server
 (XEP-0363). Chat-style: `--sender` with `--group` (the conversation) stacks
 messages in one notification; `--clear --group G` removes it. Exit codes: 0
 accepted, 1 timeout or connection, 2 auth, 3 refused (e.g. not a publisher),

@@ -15,7 +15,7 @@ import org.json.JSONObject
 /**
  * Turns a bridge push into a notification:
  *   {"topic", "id", "title", "body"?, "url"?, "priority"?, "group"?, "icon"?, "image"?}
- *   with "sender" and "group" too: a chat message, see Chats.
+ *   with "sender" and "group" (and "group_icon"?) too: a chat message, see Chats.
  *   {"topic", "id", "group", "clear": true}: remove that group's notifications.
  *   {"topic", "gap": true} when items were lost while offline.
  * Tapping opens url, if any, straight from the notification (Android 12+
