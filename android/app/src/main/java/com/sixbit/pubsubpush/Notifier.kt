@@ -24,6 +24,8 @@ import org.json.JSONObject
  */
 object Notifier {
     private const val TAG = "pubsubpush"
+    /** Behind the (white) small icon, which is otherwise a white blob in Android 12+'s templates. */
+    const val COLOR = 0xFF3B6FD4.toInt()
 
     fun show(context: Context, content: ByteArray) {
         val prefs = Prefs(context)
@@ -44,6 +46,7 @@ object Notifier {
             val channel = channel(nm, topic, "default")
             nm.notify("$topic/gap".hashCode(), Notification.Builder(context, channel)
                 .setSmallIcon(R.drawable.ic_notify)
+                .setColor(COLOR)
                 .setContentTitle(context.getString(R.string.gap_title, topic))
                 .setContentText(context.getString(R.string.gap_text))
                 .setContentIntent(openApp(context, topic.hashCode()))
@@ -88,6 +91,7 @@ object Notifier {
         val body = msg.optString("body").takeIf { it.isNotEmpty() }
         val builder = Notification.Builder(context, channel(nm, topic, msg.optString("priority", "default")))
             .setSmallIcon(R.drawable.ic_notify)
+            .setColor(COLOR)
             .setContentTitle(msg.optString("title", topic))
             .setSubText(topic)
             .setContentIntent(tap(context, msg.optString("url").ifEmpty { null }, notifId))

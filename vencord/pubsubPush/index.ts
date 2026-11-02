@@ -11,7 +11,7 @@
 import { Logger } from "@utils/Logger";
 import definePlugin, { PluginNative, ReporterTestable } from "@utils/types";
 import { findByCodeLazy } from "@webpack";
-import { ChannelStore, GuildRoleStore, GuildStore, IconUtils, ReadStateStore, UserStore } from "@webpack/common";
+import { ChannelStore, GuildRoleStore, GuildStore, IconUtils, ReadStateStore, SelectedChannelStore, UserStore, WindowStore } from "@webpack/common";
 
 interface Message {
     id: string;
@@ -35,12 +35,18 @@ const Native = VencordNative.pluginHelpers.PubsubPush as PluginNative<typeof imp
 /** Channels with a notification on the phone → the newest message forwarded. */
 const forwarded = new Map<string, string>();
 
+/** What Discord's UI state is, for the log: clears that nobody asked for are being chased. */
+function uiState(channelId: string) {
+    return `selected=${SelectedChannelStore.getChannelId() === channelId} focused=${WindowStore.isFocused()}`;
+}
+
 /** Clear the phone's notification for channels read up to what was forwarded. */
 function clearRead() {
     for (const [channelId, messageId] of forwarded) {
         const ack = ReadStateStore.ackMessageId(channelId);
         if (!ack || BigInt(ack) < BigInt(messageId)) continue;
         forwarded.delete(channelId);
+        Native.log(`clear ${channelId}: ack ${ack} >= forwarded ${messageId}, ${uiState(channelId)}`);
         Native.clear(channelId)
             .then(result => logger.debug(result))
             .catch(e => logger.error("clear failed", e));
@@ -116,6 +122,12 @@ export default definePlugin({
     },
 
     flux: {
+        MESSAGE_ACK(event: { channelId?: string; }) {
+            // Any ack while something is on the phone; the payload's shape isn't ours to know.
+            if (forwarded.size)
+                Native.log(`MESSAGE_ACK ${JSON.stringify(event)}, ${uiState(event.channelId ?? "")}`);
+        },
+
         MESSAGE_CREATE({ message, optimistic }: { message: Message; optimistic: boolean; }) {
             if (optimistic) return;
             if (message.author.id === UserStore.getCurrentUser()?.id) return;
@@ -130,6 +142,7 @@ export default definePlugin({
             Native.publish(item)
                 .then(result => {
                     logger.debug(result);
+                    Native.log(`forward ${message.channel_id}/${message.id}: ${result}, ${uiState(message.channel_id)}`);
                     if (result === "published") forwarded.set(message.channel_id, message.id);
                 })
                 .catch(e => logger.error("publish failed", e));

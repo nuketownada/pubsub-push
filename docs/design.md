@@ -278,6 +278,10 @@ Minimal, Kotlin, UnifiedPush connector library:
   its last 8 messages only while it's showing (tapped, swiped or cleared →
   the next message starts afresh, no delete-intent bookkeeping). Tapping opens
   the newest message's URL and clears the whole conversation.
+- **Conversation layout** needs a long-lived shortcut: each chat pushes a
+  dynamic shortcut (`chat:<topic>:<group>`, the conversation's icon, intent =
+  its URL) and names it with `setShortcutId`. Without one Android shows a plain
+  notification with the app icon where the conversation's should be.
 - **Pictures**: posted without them first, then fetched (scaled to 256px icons
   or 1280px images, cached 3 days) and re-posted silently if still showing.
   Chat pictures reach the system UI through a non-exported `ImageProvider`
@@ -362,4 +366,4 @@ Build: reproducible with Nix (exact Gradle-in-Nix approach open), sideloaded.
 7. Send the `mod_unified_push` fixes upstream.
 8. Chat-style Discord notifications, pictures (`icon`, `image`, uploads via
    `pubsub-publish`), clear-on-read (Push Topics 0.2.0); conversation icons
-   (0.2.1).
+   (0.2.1; 0.2.2 via shortcuts, as 0.2.1's large icon wasn't used).

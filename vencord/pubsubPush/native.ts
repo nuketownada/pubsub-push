@@ -15,7 +15,7 @@
  */
 
 import { execFile } from "child_process";
-import { readFileSync } from "fs";
+import { appendFileSync, mkdirSync, readFileSync } from "fs";
 import { homedir } from "os";
 import { join } from "path";
 
@@ -36,6 +36,15 @@ interface Item {
 }
 
 const configPath = join(process.env.XDG_CONFIG_HOME || join(homedir(), ".config"), "pubsub-push", "discord.json");
+const logDir = join(process.env.XDG_STATE_HOME || join(homedir(), ".local", "state"), "pubsub-push");
+
+/** Appends to $XDG_STATE_HOME/pubsub-push/discord.log: what was forwarded and cleared, and why. */
+export function log(_: unknown, line: string) {
+    try {
+        mkdirSync(logDir, { recursive: true });
+        appendFileSync(join(logDir, "discord.log"), `${new Date().toISOString()} ${line}\n`);
+    } catch { }
+}
 
 function run(argv: string[], timeout: number): Promise<number> {
     return new Promise(resolve => {

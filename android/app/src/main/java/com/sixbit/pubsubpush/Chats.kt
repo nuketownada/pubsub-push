@@ -4,12 +4,16 @@ import android.app.Notification
 import android.app.NotificationManager
 import android.app.Person
 import android.content.Context
+import android.content.Intent
+import android.content.pm.ShortcutInfo
+import android.content.pm.ShortcutManager
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.Typeface
 import android.graphics.drawable.Icon
+import android.net.Uri
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -103,6 +107,7 @@ object Chats {
         val id = notifId(topic, group)
         val builder = Notification.Builder(context, Notifier.channel(nm, topic, chat.getString("priority")))
             .setSmallIcon(R.drawable.ic_notify)
+            .setColor(Notifier.COLOR)
             .setStyle(style)
             .setContentTitle(title)
             .setContentText("${last.getString("sender")}: ${last.optString("text")}")
@@ -113,16 +118,36 @@ object Chats {
             .setOnlyAlertOnce(!alert)
             .setWhen(last.getLong("time"))
             .setShowWhen(true)
-        // The conversation's icon (top left): a DM's is the sender, a group's its own
-        // icon, or failing that its initial, since Android otherwise shows the app icon.
-        val conversationIcon = if (isGroup) {
-            Images.bitmap(Images.cached(context, chat.optString("group_icon").ifEmpty { null }))
-                ?: initial(title)
-        } else {
-            Images.bitmap(Images.cached(context, last.optString("icon").ifEmpty { null }))
-        }
-        conversationIcon?.let { builder.setLargeIcon(it) }
+        // Android lays a notification out as a conversation, with the conversation's
+        // icon, only if it names a long-lived shortcut; otherwise it's a plain one
+        // showing the app icon. The icon: a DM's is the sender, a group's its own, or
+        // failing either the title's initial.
+        val icon = Images.bitmap(Images.cached(context,
+            (if (isGroup) chat.optString("group_icon") else last.optString("icon")).ifEmpty { null }))
+            ?: initial(title)
+        val shortcutId = "chat:$topic:$group"
+        val intent = chat.optString("url").ifEmpty { null }
+            ?.let { Intent(Intent.ACTION_VIEW, Uri.parse(it)) }
+            ?: Intent(Intent.ACTION_MAIN).setClass(context, MainActivity::class.java)
+        context.getSystemService(ShortcutManager::class.java).pushDynamicShortcut(
+            ShortcutInfo.Builder(context, shortcutId)
+                .setShortLabel(title)
+                .setLongLived(true)
+                .setIcon(Icon.createWithAdaptiveBitmap(adaptive(icon)))
+                .setIntent(intent)
+                .apply { if (!isGroup) setPerson(Person.Builder().setName(title).setKey(title).build()) }
+                .build())
+        builder.setShortcutId(shortcutId).setLargeIcon(icon)
         nm.notify(id, builder.build())
+    }
+
+    /** Pads a picture so an adaptive icon's mask (the middle 72 of 108) shows all of it. */
+    private fun adaptive(picture: Bitmap): Bitmap {
+        val inner = maxOf(picture.width, picture.height)
+        val bitmap = Bitmap.createBitmap(inner * 3 / 2, inner * 3 / 2, Bitmap.Config.ARGB_8888)
+        Canvas(bitmap).drawBitmap(picture, inner / 4f + (inner - picture.width) / 2f,
+            inner / 4f + (inner - picture.height) / 2f, null)
+        return bitmap
     }
 
     /** A coloured circle with the title's first letter (skipping "#" and the like). */
