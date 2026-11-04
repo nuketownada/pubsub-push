@@ -366,4 +366,7 @@ Build: reproducible with Nix (exact Gradle-in-Nix approach open), sideloaded.
 7. Send the `mod_unified_push` fixes upstream.
 8. Chat-style Discord notifications, pictures (`icon`, `image`, uploads via
    `pubsub-publish`), clear-on-read (Push Topics 0.2.0); conversation icons
-   (0.2.1; 0.2.2 via shortcuts, as 0.2.1's large icon wasn't used).
+   (0.2.1; 0.2.2 via shortcuts, as 0.2.1's large icon wasn't used; 0.2.3
+   adaptive launcher icon for the badge). Verified on the phone 2026-11-02:
+   pictures, avatars, stacking, conversation icons, and clear-on-read across
+   the phone and two other devices.
